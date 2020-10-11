@@ -29,7 +29,8 @@ type INode interface {
 }
 
 // how many nodes?
-const nnodes = 100
+const nnodes = 100000
+const nloops = 1
 
 // GetChan ...
 // returns the Channel of the current node.
@@ -40,13 +41,13 @@ func (node *Node) GetChan() chan string {
 // Init ...
 //  initializes current node of ring
 func (node *Node) Init(rp *ring.Ring, index int) {
-	fmt.Printf("Init() called (index=:%v)\n", index)
+	//fmt.Printf("Init() called (index=:%v)\n", index)
 	node.self = rp
 	node.id = index
 	node.ch = make(chan string)
 	node.sent = 0
 	node.rcv = 0
-	fmt.Printf("Init:value of n at end: %v\n", node)
+	//fmt.Printf("Init:value of n at end: %v\n", node)
 }
 
 // Link ..
@@ -64,23 +65,27 @@ func (node *Node) Link(next *ring.Ring) {
 // Waits for message on this node's channel, then sends it onto the node's chanel.
 func (node *Node) RcvThenSend(r *ring.Ring) {
 	//	nn:=r.Value
-	fmt.Printf("Starting RcvThenSend on node.id:%v\n", node.id)
+	//fmt.Printf("Starting RcvThenSend on node.id:%v\n", node.id)
 	for {
 		msg := <-node.ch
 		node.rcv++
-		fmt.Printf("Node %v got '%v'\n", node.id, msg)
-		// do this, but if node is 0 and has already sent 10 msgs we stop
-		if !(node.id == 0 && node.sent >= 10) {
+		//fmt.Printf("Node %v got '%v'\n", node.id, msg)
+		// do this, but if node is 0 and has already sent nloop msgs we stop
+		if !(node.id == 0 && node.sent >= nloops) {
 			// send message to next in ring
 			node.neighbourChannel <- msg + fmt.Sprintf("[%v->%v]", node.id, node.neighbourid)
 			node.sent++
+		} else {
+			now := time.Now()
+			fmt.Printf("Done. Time: %v\n",
+				(now.UTC().Format("Mon, 2 Jan 2006 15:04:05 MST")))
 		}
 	}
 }
 
 func main() {
 	now := time.Now()
-	fmt.Printf("hello go, now is %v\n",
+	fmt.Printf("Starting. Time: %v\n",
 		(now.UTC().Format("Mon, 2 Jan 2006 15:04:05 MST")))
 
 	// create a ring of nodes
@@ -89,29 +94,37 @@ func main() {
 
 	for i := 0; i < nnodes; i++ {
 		nn := new(Node)
-		fmt.Printf("type of nn: %v\n", fmt.Sprintf("%T", nn))
-		fmt.Printf("value of nn: %v\n", nn)
+		//fmt.Printf("type of nn: %v\n", fmt.Sprintf("%T", nn))
+		//fmt.Printf("value of nn: %v\n", nn)
 		//inn := INode(nn)
 		//fmt.Printf("type of inn: %v\n", fmt.Sprintf("%T", inn))
 		nn.Init(r, i)
 		r.Value = nn
 		r = r.Next()
 	}
+	now = time.Now()
+	fmt.Printf("Nodes created. Time: %v\n",
+		(now.UTC().Format("Mon, 2 Jan 2006 15:04:05 MST")))
+
 	for i := 0; i < nnodes; i++ {
 		//var current INode
-		fmt.Printf("type of r.Value: %T\n", r.Value)
+		//fmt.Printf("type of r.Value: %T\n", r.Value)
 
 		icurrent := INode(r.Value.(*Node))
-		fmt.Printf("type of current: %T\n", icurrent)
-		fmt.Printf("value of current: %v\n", icurrent)
+		//fmt.Printf("type of current: %T\n", icurrent)
+		//fmt.Printf("value of current: %v\n", icurrent)
 		icurrent.Link(r.Next())
 		go icurrent.RcvThenSend(r)
 		r = r.Next()
 	}
+	now = time.Now()
+	fmt.Printf("Finished linking nodes\nSending init msg. Time: %v\n",
+		(now.UTC().Format("Mon, 2 Jan 2006 15:04:05 MST")))
+
 	r.Value.(*Node).ch <- "hello"
 
 	select {
-	case <-time.After(15000 * time.Millisecond):
+	case <-time.After(150000 * time.Millisecond):
 		fmt.Printf("Timout. Quitting.\n")
 	}
 	fmt.Printf("r at end of run: %v\n", r)
